@@ -79,6 +79,7 @@ public class SignupServlet extends HttpServlet {
 
         } catch (Exception e) {
             e.printStackTrace();
+            System.out.println("DB_HOST=" + System.getenv("DB_HOST"));
             response.sendRedirect("Signup_Form.jsp?error=db");
         }
     }
@@ -90,9 +91,12 @@ String url =
     System.getenv("DB_HOST") + ":" +
     System.getenv("DB_PORT") + "/" +
     System.getenv("DB_NAME") +
-    "?useSSL=false" +
+    "?useSSL=true" +
+    "&requireSSL=true" +
+    "&verifyServerCertificate=false" +
     "&allowPublicKeyRetrieval=true" +
     "&serverTimezone=UTC";
+
 
 
         Class.forName("com.mysql.cj.jdbc.Driver");
