@@ -8,26 +8,26 @@ import java.sql.PreparedStatement;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import javax.servlet.http.Part;
+import javax.servlet.http.*;
 
 @WebServlet("/UpdateProfilePhotoServlet")
 @MultipartConfig(
-    fileSizeThreshold = 1024 * 1024,     // 1MB
-    maxFileSize = 5 * 1024 * 1024,        // 5MB
-    maxRequestSize = 10 * 1024 * 1024     // 10MB
+    fileSizeThreshold = 1024 * 1024,
+    maxFileSize = 5 * 1024 * 1024,
+    maxRequestSize = 10 * 1024 * 1024
 )
 public class UpdateProfilePhotoServlet extends HttpServlet {
 
     private static final String UPLOAD_DIR = "uploads/profile";
 
-
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+
+        // disable cache
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
 
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("userId") == null) {
@@ -44,51 +44,59 @@ public class UpdateProfilePhotoServlet extends HttpServlet {
             return;
         }
 
-        String fileName = Paths.get(filePart.getSubmittedFileName()).getFileName().toString();
-        String extension = fileName.substring(fileName.lastIndexOf("."));
+        // ===== file name =====
+        String original = Paths.get(filePart.getSubmittedFileName()).getFileName().toString();
+        String ext = original.substring(original.lastIndexOf("."));
+        String newFileName = "user_" + userId + ext;
 
-        // Rename file → user_5.jpg
-        String newFileName = "user_" + userId + extension;
+        // ===== upload path =====
+        String uploadPath = getServletContext().getRealPath("/") + File.separator + UPLOAD_DIR;
+        File uploadDir = new File(uploadPath);
+        if (!uploadDir.exists()) uploadDir.mkdirs();
 
-String uploadPath =
-    getServletContext().getRealPath("/") + File.separator + UPLOAD_DIR;
-
-File uploadDir = new File(uploadPath);
-if (!uploadDir.exists()) {
-    uploadDir.mkdirs();   // 🔥 important
-}
-
-filePart.write(uploadPath + File.separator + newFileName);
-
-
-        // Save file
+        // ===== save file (ONLY ONCE) =====
         filePart.write(uploadPath + File.separator + newFileName);
 
-        // Save path in DB
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
+        String dbPath = UPLOAD_DIR + "/" + newFileName;
 
-            try (Connection con = DriverManager.getConnection(
-                    "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC",
-                    "root",
-                    "15112004")) {
+        // ===== DB update =====
+        try (Connection con = getConnection()) {
 
-                String sql = "UPDATE users SET profile_photo=? WHERE id=?";
-                PreparedStatement ps = con.prepareStatement(sql);
-                ps.setString(1, UPLOAD_DIR + "/" + newFileName);
+            String sql = "UPDATE users SET profile_photo=? WHERE id=?";
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setString(1, dbPath);
                 ps.setInt(2, userId);
                 ps.executeUpdate();
-
-                session.setAttribute("profilePhoto", UPLOAD_DIR + "/" + newFileName);
-
-                request.setAttribute("successMessage", "Profile photo updated successfully");
-                request.getRequestDispatcher("settings.jsp").forward(request, response);
             }
+
+            // update session
+            session.setAttribute("profilePhoto", dbPath);
+
+            request.setAttribute("successMessage", "Profile photo updated successfully");
+            request.getRequestDispatcher("settings.jsp").forward(request, response);
 
         } catch (Exception e) {
             e.printStackTrace();
             request.setAttribute("errorMessage", "Photo upload failed");
             request.getRequestDispatcher("settings.jsp").forward(request, response);
         }
+    }
+
+    // ==========================
+    // Render DB connection
+    // ==========================
+    private Connection getConnection() throws Exception {
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }

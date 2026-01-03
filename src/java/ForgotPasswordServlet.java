@@ -1,31 +1,31 @@
 import java.io.IOException;
 import javax.servlet.ServletException;
-import javax.servlet.http.*;
 import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.*;
 import java.sql.*;
 
 @WebServlet("/ForgotPasswordServlet")
 public class ForgotPasswordServlet extends HttpServlet {
-
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004"; // change if needed
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         request.setCharacterEncoding("UTF-8");
-        response.setContentType("text/html;charset=UTF-8");
+
+        // 🔒 Prevent cache
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
 
         String email = request.getParameter("email");
         String newPassword = request.getParameter("newPassword");
         String confirmPassword = request.getParameter("confirmPassword");
 
-        // Basic validation
+        // ================= BASIC VALIDATION =================
         if (email == null || newPassword == null || confirmPassword == null ||
-            email.trim().isEmpty() || newPassword.trim().isEmpty() ||
+            email.trim().isEmpty() ||
+            newPassword.trim().isEmpty() ||
             confirmPassword.trim().isEmpty()) {
 
             response.sendRedirect("Forgot_Password_Form.jsp?error=missing");
@@ -37,43 +37,55 @@ public class ForgotPasswordServlet extends HttpServlet {
             return;
         }
 
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        // ================= DB OPERATION =================
+        try (Connection con = getConnection()) {
 
-            // Check if email exists
-            String checkSql = "SELECT id FROM users WHERE email = ?";
-            PreparedStatement psCheck = con.prepareStatement(checkSql);
-            psCheck.setString(1, email);
-            ResultSet rs = psCheck.executeQuery();
+            // 1️⃣ Check email exists
+            String checkSql = "SELECT id FROM users WHERE email=?";
+            try (PreparedStatement psCheck = con.prepareStatement(checkSql)) {
 
-            if (!rs.next()) {
-                // Email not found
-                response.sendRedirect("Forgot_Password_Form.jsp?error=notfound");
-                rs.close();
-                psCheck.close();
-                con.close();
-                return;
+                psCheck.setString(1, email);
+                ResultSet rs = psCheck.executeQuery();
+
+                if (!rs.next()) {
+                    response.sendRedirect("Forgot_Password_Form.jsp?error=notfound");
+                    return;
+                }
             }
 
-            // Update password
-            String updateSql = "UPDATE users SET password = ? WHERE email = ?";
-            PreparedStatement psUpdate = con.prepareStatement(updateSql);
-            psUpdate.setString(1, newPassword);
-            psUpdate.setString(2, email);
-            psUpdate.executeUpdate();
+            // 2️⃣ Update password
+            String updateSql = "UPDATE users SET password=? WHERE email=?";
+            try (PreparedStatement psUpdate = con.prepareStatement(updateSql)) {
 
-            rs.close();
-            psCheck.close();
-            psUpdate.close();
-            con.close();
+                psUpdate.setString(1, newPassword); // 🔐 hashing optional
+                psUpdate.setString(2, email);
+                psUpdate.executeUpdate();
+            }
 
-            // Redirect to login after successful reset
+            // ✅ Success → Login
             response.sendRedirect("Login_Form.jsp?reset=success");
 
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("Forgot_Password_Form.jsp?error=db");
         }
+    }
+
+    /* ================= DB CONNECTION (Render compatible) ================= */
+    private Connection getConnection() throws Exception {
+
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }

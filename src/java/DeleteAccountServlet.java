@@ -1,16 +1,11 @@
 import java.io.IOException;
+import java.sql.*;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.sql.*;
 
 @WebServlet("/DeleteAccountServlet")
 public class DeleteAccountServlet extends HttpServlet {
-
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -27,15 +22,14 @@ public class DeleteAccountServlet extends HttpServlet {
         Connection con = null;
 
         try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+            con = getConnection();
             con.setAutoCommit(false);
 
             String[] queries = {
-                "DELETE FROM transportation_logs WHERE user_id = ?",
-                "DELETE FROM food_consumption_logs WHERE user_id = ?",
-                "DELETE FROM energy_consumption WHERE user_id = ?",
-                "DELETE FROM users WHERE id = ?"
+                "DELETE FROM transportation_logs WHERE user_id=?",
+                "DELETE FROM food_consumption_logs WHERE user_id=?",
+                "DELETE FROM energy_consumption WHERE user_id=?",
+                "DELETE FROM users WHERE id=?"
             };
 
             for (String sql : queries) {
@@ -48,6 +42,12 @@ public class DeleteAccountServlet extends HttpServlet {
             con.commit();
 
             session.invalidate();
+
+            // 🔒 cache disable
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeader("Pragma", "no-cache");
+            response.setDateHeader("Expires", 0);
+
             response.sendRedirect("Login_Form.jsp?deleted=true");
 
         } catch (Exception e) {
@@ -66,5 +66,23 @@ public class DeleteAccountServlet extends HttpServlet {
                 e.printStackTrace();
             }
         }
+    }
+
+    /* ================= DB CONNECTION (Render ready) ================= */
+    private Connection getConnection() throws Exception {
+
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }

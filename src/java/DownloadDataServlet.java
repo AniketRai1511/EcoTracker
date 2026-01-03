@@ -8,11 +8,6 @@ import javax.servlet.http.*;
 @WebServlet("/DownloadDataServlet")
 public class DownloadDataServlet extends HttpServlet {
 
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004";
-
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -25,24 +20,32 @@ public class DownloadDataServlet extends HttpServlet {
 
         int userId = (int) session.getAttribute("userId");
 
+        // 🔒 Prevent caching
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
+
         response.setContentType("text/csv");
-        response.setHeader("Content-Disposition",
-                "attachment; filename=\"user_data.csv\"");
+        response.setHeader(
+                "Content-Disposition",
+                "attachment; filename=\"user_data.csv\""
+        );
 
         try (
-            Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+            Connection con = getConnection();
             PrintWriter out = response.getWriter()
         ) {
 
-            /* USER PROFILE */
+            /* ================= USER PROFILE ================= */
             out.println("USER PROFILE");
             out.println("Name,Email,Bio,Location");
 
             PreparedStatement ps = con.prepareStatement(
-                "SELECT name,email,bio,location FROM users WHERE id=?");
+                "SELECT name,email,bio,location FROM users WHERE id=?"
+            );
             ps.setInt(1, userId);
-            ResultSet rs = ps.executeQuery();
 
+            ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 out.printf("\"%s\",\"%s\",\"%s\",\"%s\"%n",
                         rs.getString("name"),
@@ -51,25 +54,34 @@ public class DownloadDataServlet extends HttpServlet {
                         rs.getString("location"));
             }
 
-            out.println("\nTRANSPORTATION LOGS");
+            /* ================= TRANSPORT ================= */
+            out.println();
+            out.println("TRANSPORTATION LOGS");
             out.println("Mode,Distance,Emission,Date");
 
             dumpTable(out, con,
-                "SELECT transport_mode,distance,emission_kg,created_at FROM transportation_logs WHERE user_id=?",
+                "SELECT transport_mode,distance,emission_kg,created_at " +
+                "FROM transportation_logs WHERE user_id=?",
                 userId);
 
-            out.println("\nFOOD CONSUMPTION LOGS");
+            /* ================= FOOD ================= */
+            out.println();
+            out.println("FOOD CONSUMPTION LOGS");
             out.println("Food Type,Quantity,Emission,Date");
 
             dumpTable(out, con,
-                "SELECT food_type,quantity,emission_kg,created_at FROM food_consumption_logs WHERE user_id=?",
+                "SELECT food_type,quantity,emission_kg,created_at " +
+                "FROM food_consumption_logs WHERE user_id=?",
                 userId);
 
-            out.println("\nENERGY CONSUMPTION LOGS");
+            /* ================= ENERGY ================= */
+            out.println();
+            out.println("ENERGY CONSUMPTION LOGS");
             out.println("Source,Units,Emission,Date");
 
             dumpTable(out, con,
-                "SELECT energy_source,units,emission,created_at FROM energy_consumption WHERE user_id=?",
+                "SELECT energy_source,units,emission,created_at " +
+                "FROM energy_consumption WHERE user_id=?",
                 userId);
 
         } catch (Exception e) {
@@ -77,11 +89,13 @@ public class DownloadDataServlet extends HttpServlet {
         }
     }
 
+    /* ================= HELPER METHOD ================= */
     private void dumpTable(PrintWriter out, Connection con, String sql, int userId)
             throws SQLException {
 
         PreparedStatement ps = con.prepareStatement(sql);
         ps.setInt(1, userId);
+
         ResultSet rs = ps.executeQuery();
         ResultSetMetaData md = rs.getMetaData();
 
@@ -92,5 +106,23 @@ public class DownloadDataServlet extends HttpServlet {
             }
             out.println();
         }
+    }
+
+    /* ================= DB CONNECTION (Render ready) ================= */
+    private Connection getConnection() throws Exception {
+
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }

@@ -1,16 +1,11 @@
 import java.io.IOException;
 import javax.servlet.ServletException;
-import javax.servlet.http.*;
 import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.*;
 import java.sql.*;
 
 @WebServlet("/SignupServlet")
 public class SignupServlet extends HttpServlet {
-
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004"; // change if needed
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -24,7 +19,7 @@ public class SignupServlet extends HttpServlet {
         String password = request.getParameter("password");
         String confirmPassword = request.getParameter("confirmPassword");
 
-        // Validation
+        // ===== Validation =====
         if (name == null || email == null || password == null || confirmPassword == null ||
             name.trim().isEmpty() || email.trim().isEmpty() ||
             password.trim().isEmpty() || confirmPassword.trim().isEmpty()) {
@@ -38,11 +33,9 @@ public class SignupServlet extends HttpServlet {
             return;
         }
 
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        try (Connection con = getConnection()) {
 
-            // Insert user (role defaults to 'user')
+            // ===== Insert user =====
             String insertSql =
                 "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')";
             PreparedStatement psInsert = con.prepareStatement(insertSql);
@@ -51,25 +44,26 @@ public class SignupServlet extends HttpServlet {
             psInsert.setString(3, password);
             psInsert.executeUpdate();
 
-            // Fetch user
+            // ===== Fetch inserted user =====
             String selectSql =
-                "SELECT id, name, email, role FROM users WHERE email = ?";
+                "SELECT id, name, email, role FROM users WHERE email=?";
             PreparedStatement psSelect = con.prepareStatement(selectSql);
             psSelect.setString(1, email);
             ResultSet rs = psSelect.executeQuery();
 
             if (rs.next()) {
-                HttpSession session = request.getSession();
+                HttpSession session = request.getSession(true);
+
                 session.setAttribute("userId", rs.getInt("id"));
                 session.setAttribute("userName", rs.getString("name"));
                 session.setAttribute("userEmail", rs.getString("email"));
                 session.setAttribute("userRole", rs.getString("role"));
-                
+
+                // cache disable (important for back button issue)
                 response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
                 response.setHeader("Pragma", "no-cache");
                 response.setDateHeader("Expires", 0);
 
-                // ✅ Redirect to HomeServlet after signup
                 response.sendRedirect("HomeServlet?from=signup");
             } else {
                 response.sendRedirect("Signup_Form.jsp?error=failed");
@@ -78,15 +72,30 @@ public class SignupServlet extends HttpServlet {
             rs.close();
             psSelect.close();
             psInsert.close();
-            con.close();
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // Duplicate email
+            // duplicate email
             response.sendRedirect("Signup_Form.jsp?error=exists");
 
         } catch (Exception e) {
             e.printStackTrace();
             response.sendRedirect("Signup_Form.jsp?error=db");
         }
+    }
+
+    // ===== Render DB Connection =====
+    private Connection getConnection() throws Exception {
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }

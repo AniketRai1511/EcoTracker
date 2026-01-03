@@ -10,16 +10,19 @@ public class HomeServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Disable cache
+        // 🔒 Disable cache (very important)
         response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         response.setHeader("Pragma", "no-cache");
         response.setDateHeader("Expires", 0);
 
+        // Session optional (home is public)
         HttpSession session = request.getSession(false);
 
-        if (session == null || session.getAttribute("userId") == null) {
-            response.sendRedirect("Login_Form.jsp");
-            return;
+        if (session != null && session.getAttribute("userId") != null) {
+            // logged in user → name already in session
+            request.setAttribute("loggedIn", true);
+        } else {
+            request.setAttribute("loggedIn", false);
         }
 
         request.getRequestDispatcher("Home.jsp").forward(request, response);

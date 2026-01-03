@@ -7,15 +7,11 @@ import javax.servlet.http.*;
 @WebServlet("/ProgressServlet")
 public class ProgressServlet extends HttpServlet {
 
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004";
-
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // 🔒 Session check
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("userId") == null) {
             response.sendRedirect("Login_Form.jsp");
@@ -24,13 +20,11 @@ public class ProgressServlet extends HttpServlet {
 
         int userId = (int) session.getAttribute("userId");
 
-        double transport = 0;
-        double food = 0;
-        double energy = 0;
+        double transport = 0, food = 0, energy = 0;
         int trackingDays = 0;
-int transportCount = 0;
+        int transportCount = 0;
 
-        try (Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
+        try (Connection con = getConnection()) {
 
             transport = getSum(con,
                 "SELECT IFNULL(SUM(emission_kg),0) FROM transportation_logs " +
@@ -46,25 +40,22 @@ int transportCount = 0;
                 "SELECT IFNULL(SUM(emission),0) FROM energy_consumption " +
                 "WHERE user_id=? AND MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE())",
                 userId);
-                // Days tracked
-    PreparedStatement ps1 = con.prepareStatement(
-        "SELECT COUNT(DISTINCT DATE(created_at)) FROM transportation_logs WHERE user_id=?");
-    ps1.setInt(1, userId);
-    ResultSet rs1 = ps1.executeQuery();
-    if (rs1.next()) trackingDays = rs1.getInt(1);
 
-    // Transport usage count
-    PreparedStatement ps2 = con.prepareStatement(
-        "SELECT COUNT(*) FROM transportation_logs WHERE user_id=?");
-    ps2.setInt(1, userId);
-    ResultSet rs2 = ps2.executeQuery();
-    if (rs2.next()) transportCount = rs2.getInt(1);
+            // ===== Tracking days =====
+            PreparedStatement ps1 = con.prepareStatement(
+                "SELECT COUNT(DISTINCT DATE(created_at)) FROM transportation_logs WHERE user_id=?");
+            ps1.setInt(1, userId);
+            ResultSet rs1 = ps1.executeQuery();
+            if (rs1.next()) trackingDays = rs1.getInt(1);
 
-        }
-        
-        
-        
-        catch (Exception e) {
+            // ===== Transport count =====
+            PreparedStatement ps2 = con.prepareStatement(
+                "SELECT COUNT(*) FROM transportation_logs WHERE user_id=?");
+            ps2.setInt(1, userId);
+            ResultSet rs2 = ps2.executeQuery();
+            if (rs2.next()) transportCount = rs2.getInt(1);
+
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -77,11 +68,17 @@ int transportCount = 0;
         double foodPct = total == 0 ? 0 : (food / total) * 100;
         double energyPct = total == 0 ? 0 : (energy / total) * 100;
 
-        int treesEquivalent = (int) Math.ceil(total / 20);   // 1 tree ≈ 20kg CO₂
-        double savedMoney = energy * 6.5;                    // ₹ per kWh approx
-        double reductionPercent = 15.0;                      // placeholder logic
+        int treesEquivalent = (int) Math.ceil(total / 20);
+        double savedMoney = energy * 6.5;
+        double reductionPercent = 15.0; // placeholder
 
-        // ===== Send data to JSP =====
+        // ===== Milestones =====
+        boolean weekComplete = trackingDays >= 7;
+        boolean ecoBeginner = reductionPercent >= 10;
+        boolean greenCommuter = transportCount >= 10;
+        boolean sustainabilityChampion = reductionPercent >= 25;
+
+        // ===== JSP attributes =====
         request.setAttribute("totalEmissions", total);
         request.setAttribute("monthlyAverage", monthlyAverage);
         request.setAttribute("weeklyAverage", weeklyAverage);
@@ -98,7 +95,15 @@ int transportCount = 0;
         request.setAttribute("savedMoney", savedMoney);
         request.setAttribute("reductionPercent", reductionPercent);
 
-        // ===== Chart.js data =====
+        request.setAttribute("weekComplete", weekComplete);
+        request.setAttribute("ecoBeginner", ecoBeginner);
+        request.setAttribute("greenCommuter", greenCommuter);
+        request.setAttribute("sustainabilityChampion", sustainabilityChampion);
+
+        request.setAttribute("trackingDays", trackingDays);
+        request.setAttribute("transportCount", transportCount);
+
+        // ===== Chart.js dummy data =====
         request.setAttribute("dailyLabels",
             "['Mon','Tue','Wed','Thu','Fri','Sat','Sun']");
         request.setAttribute("dailyValues",
@@ -111,24 +116,24 @@ int transportCount = 0;
                 weeklyAverage * 1.2 + "," +
                 weeklyAverage +
             "]");
-        
-        
-        boolean weekComplete = trackingDays >= 7;
-boolean ecoBeginner = reductionPercent >= 10;
-boolean greenCommuter = transportCount >= 10;
-boolean sustainabilityChampion = reductionPercent >= 25;
-
-request.setAttribute("weekComplete", weekComplete);
-request.setAttribute("ecoBeginner", ecoBeginner);
-request.setAttribute("greenCommuter", greenCommuter);
-request.setAttribute("sustainabilityChampion", sustainabilityChampion);
-
-request.setAttribute("trackingDays", trackingDays);
-request.setAttribute("transportCount", transportCount);
-
-        
 
         request.getRequestDispatcher("progress.jsp").forward(request, response);
+    }
+
+    // 🔗 Render DB connection
+    private Connection getConnection() throws Exception {
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 
     private double getSum(Connection con, String sql, int userId) throws SQLException {

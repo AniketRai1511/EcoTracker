@@ -1,19 +1,12 @@
 import java.io.IOException;
 import java.sql.*;
-import java.time.LocalDate;
 import java.util.*;
-
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 
 @WebServlet("/DashboardServlet")
 public class DashboardServlet extends HttpServlet {
-
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -37,7 +30,7 @@ public class DashboardServlet extends HttpServlet {
         List<Double> last6MonthsData = new ArrayList<>();
         List<String> last6MonthsLabels = new ArrayList<>();
 
-        try (Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
+        try (Connection con = getConnection()) {
 
             /* ================= TRANSPORT ================= */
             transportEmissions = getSingleValue(con,
@@ -77,8 +70,7 @@ public class DashboardServlet extends HttpServlet {
 
             /* ================= LAST 6 MONTHS ================= */
             String monthlySql =
-                "SELECT DATE_FORMAT(created_at,'%b %Y') m, " +
-                "SUM(total) total FROM ( " +
+                "SELECT DATE_FORMAT(created_at,'%b %Y') m, SUM(total) total FROM ( " +
                 " SELECT created_at, emission_kg total FROM transportation_logs WHERE user_id=? " +
                 " UNION ALL " +
                 " SELECT created_at, emission_kg FROM food_consumption_logs WHERE user_id=? " +
@@ -119,7 +111,30 @@ public class DashboardServlet extends HttpServlet {
         request.setAttribute("last6MonthsData", last6MonthsData);
         request.setAttribute("last6MonthsLabels", last6MonthsLabels);
 
+        // 🔒 Cache disable (logout/back button fix)
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
+
         request.getRequestDispatcher("dashboard.jsp").forward(request, response);
+    }
+
+    /* ================= DB CONNECTION (Render ready) ================= */
+    private Connection getConnection() throws Exception {
+
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 
     private double getSingleValue(Connection con, String sql, int userId) throws SQLException {

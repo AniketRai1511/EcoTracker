@@ -7,11 +7,6 @@ import javax.servlet.http.*;
 @WebServlet("/FoodConsumptionServlet")
 public class FoodConsumptionServlet extends HttpServlet {
 
-    private static final String DB_URL =
-        "jdbc:mysql://localhost:3306/carbon_tracker?useSSL=false&serverTimezone=UTC";
-    private static final String DB_USER = "root";
-    private static final String DB_PASS = "15112004"; // change
-
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -22,6 +17,11 @@ public class FoodConsumptionServlet extends HttpServlet {
             return;
         }
 
+        // 🔒 Prevent cache (important)
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
+
         int userId = (int) session.getAttribute("userId");
         String userName = (String) session.getAttribute("userName");
 
@@ -29,49 +29,58 @@ public class FoodConsumptionServlet extends HttpServlet {
         String[] foods = request.getParameterValues("foodType[]");
         String[] quantities = request.getParameterValues("quantity[]");
 
-        double totalEmission = 0;
+        double totalEmission = 0.0;
 
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            Connection con = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        try (Connection con = getConnection()) {
 
-            String sql = "INSERT INTO food_consumption_logs(user_id, user_name, routine_type, food_type, quantity, emission_kg)VALUES (?, ?, ?, ?, ?, ?)";
+            String sql =
+                "INSERT INTO food_consumption_logs " +
+                "(user_id, user_name, routine_type, food_type, quantity, emission_kg) " +
+                "VALUES (?, ?, ?, ?, ?, ?)";
 
-            PreparedStatement ps = con.prepareStatement(sql);
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
 
-            for (int i = 0; i < foods.length; i++) {
-                double qty = Double.parseDouble(quantities[i]);
-                double factor = getFoodEmissionFactor(foods[i]);
-                double emission = qty * factor;
+                for (int i = 0; i < foods.length; i++) {
 
-                totalEmission += emission;
+                    double qty = Double.parseDouble(quantities[i]);
+                    double factor = getFoodEmissionFactor(foods[i]);
+                    double emission = qty * factor;
 
-                ps.setInt(1, userId);
-                ps.setString(2, userName);
-                ps.setString(3, routine);
-                ps.setString(4, foods[i]);
-                ps.setDouble(5, qty);
-                ps.setDouble(6, emission);
-                ps.addBatch();
+                    totalEmission += emission;
+
+                    ps.setInt(1, userId);
+                    ps.setString(2, userName);
+                    ps.setString(3, routine);
+                    ps.setString(4, foods[i]);
+                    ps.setDouble(5, qty);
+                    ps.setDouble(6, emission);
+                    ps.addBatch();
+                }
+
+                ps.executeBatch();
             }
-
-            ps.executeBatch();
-            con.close();
 
         } catch (Exception e) {
             e.printStackTrace();
+            throw new ServletException("Food consumption save failed", e);
         }
 
-        double standard = routine.equals("daily") ? 7.0 : 200.0;
-        String message = totalEmission > standard
-                ? "⚠ High food emissions. Reduce meat, dairy, and food waste."
-                : "✅ Great job! Your food emissions are within a sustainable range.";
+        // ================= MESSAGE LOGIC =================
+        double standard = "daily".equals(routine) ? 7.0 : 200.0;
 
-        request.setAttribute("emission", Math.round(totalEmission * 100.0) / 100.0);
+        String message =
+            totalEmission > standard
+            ? "⚠ High food emissions. Reduce meat, dairy, and food waste."
+            : "✅ Great job! Your food emissions are within a sustainable range.";
+
+        request.setAttribute("emission",
+                Math.round(totalEmission * 100.0) / 100.0);
         request.setAttribute("message", message);
+
         request.getRequestDispatcher("Food.jsp").forward(request, response);
     }
 
+    /* ================= FOOD EMISSION FACTORS ================= */
     private double getFoodEmissionFactor(String food) {
         switch (food) {
             case "Rice / Wheat (Staples)": return 1.2;
@@ -87,5 +96,23 @@ public class FoodConsumptionServlet extends HttpServlet {
             case "Restaurant / Fast Food": return 4.0;
             default: return 1.0;
         }
+    }
+
+    /* ================= DB CONNECTION (Render ready) ================= */
+    private Connection getConnection() throws Exception {
+
+        String url = "jdbc:mysql://" +
+                System.getenv("DB_HOST") + ":" +
+                System.getenv("DB_PORT") + "/" +
+                System.getenv("DB_NAME") +
+                "?useSSL=false&serverTimezone=UTC";
+
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        return DriverManager.getConnection(
+                url,
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD")
+        );
     }
 }
