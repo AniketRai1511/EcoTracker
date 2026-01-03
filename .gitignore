@@ -1,0 +1,19 @@
+# NetBeans
+nbproject/private/
+build/
+dist/
+out/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploaded files (IMPORTANT)
+uploads/
+
+# Database / secrets
+*.properties
+
