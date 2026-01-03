@@ -85,11 +85,15 @@ public class SignupServlet extends HttpServlet {
 
     // ===== Render DB Connection =====
     private Connection getConnection() throws Exception {
-        String url = "jdbc:mysql://" +
-                System.getenv("DB_HOST") + ":" +
-                System.getenv("DB_PORT") + "/" +
-                System.getenv("DB_NAME") +
-                "?useSSL=false&serverTimezone=UTC";
+String url =
+    "jdbc:mysql://" +
+    System.getenv("DB_HOST") + ":" +
+    System.getenv("DB_PORT") + "/" +
+    System.getenv("DB_NAME") +
+    "?useSSL=false" +
+    "&allowPublicKeyRetrieval=true" +
+    "&serverTimezone=UTC";
+
 
         Class.forName("com.mysql.cj.jdbc.Driver");
         return DriverManager.getConnection(
