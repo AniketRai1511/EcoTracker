@@ -91,10 +91,10 @@ String url =
     System.getenv("DB_HOST") + ":" +
     System.getenv("DB_PORT") + "/" +
     System.getenv("DB_NAME") +
-    "?useSSL=true" +
-    "&requireSSL=true" +
-    "&verifyServerCertificate=false" +
+    "?useSSL=false" +
     "&allowPublicKeyRetrieval=true" +
+    "&useUnicode=true" +
+    "&characterEncoding=UTF-8" +
     "&serverTimezone=UTC";
 
 
