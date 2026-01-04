@@ -88,16 +88,20 @@ String insertSql =
 
     // ===== Render DB Connection =====
     private Connection getConnection() throws Exception {
-String url =
+
+        String url =
     "jdbc:mysql://" +
     System.getenv("DB_HOST") + ":" +
     System.getenv("DB_PORT") + "/" +
     System.getenv("DB_NAME") +
-    "?useSSL=false" +
+    "?useSSL=true" +
+    "&requireSSL=true" +
+    "&verifyServerCertificate=false" +
     "&allowPublicKeyRetrieval=true" +
     "&useUnicode=true" +
     "&characterEncoding=UTF-8" +
     "&serverTimezone=UTC";
+
 
 
 
