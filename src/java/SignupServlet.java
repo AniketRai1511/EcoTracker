@@ -36,8 +36,10 @@ public class SignupServlet extends HttpServlet {
         try (Connection con = getConnection()) {
 
             // ===== Insert user =====
-            String insertSql =
-                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')";
+String insertSql =
+ "INSERT INTO users (name, email, password, role, bio, location, profile_photo, created_at) " +
+ "VALUES (?, ?, ?, 'user', '', '', NULL, NOW())";
+
             PreparedStatement psInsert = con.prepareStatement(insertSql);
             psInsert.setString(1, name);
             psInsert.setString(2, email);
