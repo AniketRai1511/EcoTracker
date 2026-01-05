@@ -94,13 +94,8 @@ String insertSql =
     System.getenv("DB_HOST") + ":" +
     System.getenv("DB_PORT") + "/" +
     System.getenv("DB_NAME") +
-    "?useSSL=true" +
-    "&requireSSL=true" +
-    "&verifyServerCertificate=false" +
-    "&allowPublicKeyRetrieval=true" +
-    "&useUnicode=true" +
-    "&characterEncoding=UTF-8" +
-    "&serverTimezone=UTC";
+
+       "?useSSL=false&serverTimezone=UTC";
 
 
 

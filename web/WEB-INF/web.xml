@@ -71,6 +71,10 @@
         <servlet-name>AuthFilter</servlet-name>
         <servlet-class>AuthFilter</servlet-class>
     </servlet>
+    <servlet>
+        <servlet-name>DBTest</servlet-name>
+        <servlet-class>DBTest</servlet-class>
+    </servlet>
     <servlet-mapping>
         <servlet-name>SignupServlet</servlet-name>
         <url-pattern>/SignupServlet</url-pattern>
@@ -138,6 +142,10 @@
     <servlet-mapping>
         <servlet-name>AuthFilter</servlet-name>
         <url-pattern>/AuthFilter</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>DBTest</servlet-name>
+        <url-pattern>/DBTest</url-pattern>
     </servlet-mapping>
     <session-config>
         <session-timeout>
