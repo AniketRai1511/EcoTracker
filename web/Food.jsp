@@ -501,7 +501,7 @@
         <div class="container">
             <div class="page-header">
                 <h1>🥗 Food Consumption</h1>
-                <p>Monitor the environmental impact of your diet and food choices</p>
+                <p>Monitor the environmental impact  your diet and food choices</p>
             </div>
 
             <% if (hasResult) { 
