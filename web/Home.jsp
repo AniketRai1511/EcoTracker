@@ -543,7 +543,7 @@
     <main>
         <section class="hero" id="home">
             <div class="container hero-content">
-                <h1>Understand & Reduce Your Carbon Footprint</h1>
+                <h1>Understand and Reduce Your Carbon Footprint</h1>
                 <p>Join the movement for a healthier planet. EcoTrack makes it simple to monitor your daily impact and discover sustainable alternatives.</p>
                 <!-- Hero button -->
                 <% if (userName == null) { %>
