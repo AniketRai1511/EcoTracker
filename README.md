@@ -1,4 +1,4 @@
-# EcoTracker 🌱
+# ***EcoTracker*** 🌱
  
 ## Overview
 EcoTracker is a **Java-based web application** that helps users track their **carbon footprint** based on daily activities such as **transportation, food consumption, and electricity usage**.
