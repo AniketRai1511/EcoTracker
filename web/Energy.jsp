@@ -496,7 +496,7 @@
         <div class="container">
             <div class="page-header">
                 <h1>⚡ Energy Consumption Tracker</h1>
-                <p>Monitor and reduce your carbon footprint through smart energy management</p>
+                <p>Monitor and reduce your carbon footprint through smart energy management.</p>
             </div>
 
             <% if (hasResult) { %>

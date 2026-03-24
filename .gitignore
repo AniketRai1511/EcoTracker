@@ -17,3 +17,7 @@ uploads/
 # Database / secrets
 *.properties
 
+# Adding files
+.classpath
+.project
+.settings/
