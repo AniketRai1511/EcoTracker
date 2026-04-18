@@ -74,4 +74,47 @@ public class UserDAO {
 
         return null;
     }
+    
+    public boolean deleteUserAccount(int userId) {
+
+        Connection con = null;
+
+        try {
+            con = DBConnection.getConnection();
+            con.setAutoCommit(false);
+
+            String[] queries = {
+                "DELETE FROM transportation_logs WHERE user_id=?",
+                "DELETE FROM food_consumption_logs WHERE user_id=?",
+                "DELETE FROM energy_consumption WHERE user_id=?",
+                "DELETE FROM users WHERE id=?"
+            };
+
+            for (String sql : queries) {
+                try (PreparedStatement ps = con.prepareStatement(sql)) {
+                    ps.setInt(1, userId);
+                    ps.executeUpdate();
+                }
+            }
+
+            con.commit();
+            return true;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                if (con != null) con.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        } finally {
+            try {
+                if (con != null) con.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return false;
+    }
 }
