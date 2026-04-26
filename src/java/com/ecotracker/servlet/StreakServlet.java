@@ -1,8 +1,11 @@
 package com.ecotracker.servlet;
+
+import com.ecotracker.dao.StreakDAO;
+
 import java.io.IOException;
-import java.sql.*;
 import java.time.LocalDate;
 import java.util.*;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
@@ -14,11 +17,12 @@ public class StreakServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-
+        // Cache control
         response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         response.setHeader("Pragma", "no-cache");
         response.setDateHeader("Expires", 0);
 
+        // Session check
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("userId") == null) {
             response.sendRedirect("Login_Form.jsp");
@@ -26,34 +30,12 @@ public class StreakServlet extends HttpServlet {
         }
 
         int userId = (int) session.getAttribute("userId");
-        Set<LocalDate> loggedDates = new HashSet<>();
 
-        try (Connection con = getConnection()) {
+        // ===== DAO call =====
+        StreakDAO dao = new StreakDAO();
+        Set<LocalDate> loggedDates = dao.getUserLoggedDates(userId);
 
-            String sql =
-                "SELECT created_at FROM (" +
-                " SELECT created_at FROM transportation_logs WHERE user_id=? " +
-                " UNION " +
-                " SELECT created_at FROM food_consumption_logs WHERE user_id=? " +
-                " UNION " +
-                " SELECT created_at FROM energy_consumption WHERE user_id=? " +
-                ") t";
-
-            PreparedStatement ps = con.prepareStatement(sql);
-            ps.setInt(1, userId);
-            ps.setInt(2, userId);
-            ps.setInt(3, userId);
-
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                loggedDates.add(rs.getDate("created_at").toLocalDate());
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-
+        // ===== Logic =====
         int totalDays = loggedDates.size();
         int currentStreak = 0;
         int longestStreak = 0;
@@ -78,19 +60,20 @@ public class StreakServlet extends HttpServlet {
         }
         longestStreak = Math.max(longestStreak, tempStreak);
 
+        // Current streak
         LocalDate cursor = today;
         while (loggedDates.contains(cursor)) {
             currentStreak++;
             cursor = cursor.minusDays(1);
         }
 
-
+        // Calendar data (last 35 days)
         List<Map<String, Object>> calendarDays = new ArrayList<>();
 
         for (int i = 34; i >= 0; i--) {
-            LocalDate date = LocalDate.now().minusDays(i);
-            Map<String, Object> day = new HashMap<>();
+            LocalDate date = today.minusDays(i);
 
+            Map<String, Object> day = new HashMap<>();
             day.put("day", date.getDayOfMonth());
             day.put("logged", loggedDates.contains(date));
             day.put("today", date.equals(today));
@@ -98,7 +81,7 @@ public class StreakServlet extends HttpServlet {
             calendarDays.add(day);
         }
 
-
+        // Achievements
         Map<String, Boolean> achievements = new LinkedHashMap<>();
         achievements.put("Week Warrior", currentStreak >= 7);
         achievements.put("Fortnight Fighter", currentStreak >= 14);
@@ -106,7 +89,7 @@ public class StreakServlet extends HttpServlet {
         achievements.put("Century Champion", currentStreak >= 100);
         achievements.put("Year Legend", currentStreak >= 365);
 
-
+        // ===== Send to JSP =====
         request.setAttribute("currentStreak", currentStreak);
         request.setAttribute("longestStreak", longestStreak);
         request.setAttribute("totalDays", totalDays);
@@ -115,21 +98,5 @@ public class StreakServlet extends HttpServlet {
         request.setAttribute("achievements", achievements);
 
         request.getRequestDispatcher("streak.jsp").forward(request, response);
-    }
-
-
-    private Connection getConnection() throws Exception {
-        String url = "jdbc:mysql://" +
-                System.getenv("DB_HOST") + ":" +
-                System.getenv("DB_PORT") + "/" +
-                System.getenv("DB_NAME") +
-                "?useSSL=false&serverTimezone=UTC";
-
-        Class.forName("com.mysql.cj.jdbc.Driver");
-        return DriverManager.getConnection(
-                url,
-                System.getenv("DB_USER"),
-                System.getenv("DB_PASSWORD")
-        );
     }
 }
