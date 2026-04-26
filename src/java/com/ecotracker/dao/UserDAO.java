@@ -1,11 +1,13 @@
 package com.ecotracker.dao;
 
+import com.ecotracker.model.User;
 import com.ecotracker.util.DBConnection;
+
 import java.sql.*;
 
 public class UserDAO {
 
-    
+   
     public boolean emailExists(String email) {
 
         try (Connection con = DBConnection.getConnection()) {
@@ -24,7 +26,7 @@ public class UserDAO {
         return false;
     }
 
-    
+   
     public int registerUser(String name, String email, String password) {
 
         try (Connection con = DBConnection.getConnection()) {
@@ -42,7 +44,7 @@ public class UserDAO {
             if (rows > 0) {
                 ResultSet rs = ps.getGeneratedKeys();
                 if (rs.next()) {
-                    return rs.getInt(1); // return userId
+                    return rs.getInt(1);
                 }
             }
 
@@ -54,10 +56,9 @@ public class UserDAO {
     }
 
    
-    public ResultSet loginUser(String email, String password) {
+    public User loginUser(String email, String password) {
 
-        try {
-            Connection con = DBConnection.getConnection();
+        try (Connection con = DBConnection.getConnection()) {
 
             String sql = "SELECT id, name, email, role, bio, location, profile_photo " +
                          "FROM users WHERE email=? AND password=?";
@@ -66,7 +67,19 @@ public class UserDAO {
             ps.setString(1, email);
             ps.setString(2, password);
 
-            return ps.executeQuery();
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return new User(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("email"),
+                        rs.getString("role"),
+                        rs.getString("bio"),
+                        rs.getString("location"),
+                        rs.getString("profile_photo")
+                );
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
