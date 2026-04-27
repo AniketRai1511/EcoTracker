@@ -1,19 +1,23 @@
 package com.ecotracker.servlet;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.sql.*;
-import javax.servlet.ServletException;
+
+import com.ecotracker.dao.DownloadDAO;
+import com.ecotracker.util.DBConnection;
+
+import javax.servlet.*;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+import java.util.Map;
 
 @WebServlet("/DownloadDataServlet")
 public class DownloadDataServlet extends HttpServlet {
 
-    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         HttpSession session = request.getSession(false);
+
         if (session == null || session.getAttribute("userId") == null) {
             response.sendRedirect("Login_Form.jsp");
             return;
@@ -21,108 +25,69 @@ public class DownloadDataServlet extends HttpServlet {
 
         int userId = (int) session.getAttribute("userId");
 
-
-        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        response.setHeader("Pragma", "no-cache");
-        response.setDateHeader("Expires", 0);
-
         response.setContentType("text/csv");
-        response.setHeader(
-                "Content-Disposition",
-                "attachment; filename=\"user_data.csv\""
-        );
+        response.setHeader("Content-Disposition", "attachment; filename=user_data.csv");
 
         try (
-            Connection con = getConnection();
+            Connection con = DBConnection.getConnection();
             PrintWriter out = response.getWriter()
         ) {
 
-        
+            DownloadDAO dao = new DownloadDAO();
+
+            // ===== USER =====
+            Map<String, String> user = dao.getUserProfile(userId);
+
             out.println("USER PROFILE");
             out.println("Name,Email,Bio,Location");
 
-            PreparedStatement ps = con.prepareStatement(
-                "SELECT name,email,bio,location FROM users WHERE id=?"
-            );
-            ps.setInt(1, userId);
-
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                out.printf("\"%s\",\"%s\",\"%s\",\"%s\"%n",
-                        rs.getString("name"),
-                        rs.getString("email"),
-                        rs.getString("bio"),
-                        rs.getString("location"));
+            if (user != null) {
+                out.println(format(user.get("name")) + "," +
+                            format(user.get("email")) + "," +
+                            format(user.get("bio")) + "," +
+                            format(user.get("location")));
             }
 
-  
-            out.println();
-            out.println("TRANSPORTATION LOGS");
+            // ===== TRANSPORT =====
+            out.println("\nTRANSPORTATION LOGS");
             out.println("Mode,Distance,Emission,Date");
 
-            dumpTable(out, con,
-                "SELECT transport_mode,distance,emission_kg,created_at " +
-                "FROM transportation_logs WHERE user_id=?",
-                userId);
+            printResultSet(out, dao.getTransportData(con, userId));
 
+            // ===== FOOD =====
+            out.println("\nFOOD CONSUMPTION LOGS");
+            out.println("Food,Quantity,Emission,Date");
 
-            out.println();
-            out.println("FOOD CONSUMPTION LOGS");
-            out.println("Food Type,Quantity,Emission,Date");
+            printResultSet(out, dao.getFoodData(con, userId));
 
-            dumpTable(out, con,
-                "SELECT food_type,quantity,emission_kg,created_at " +
-                "FROM food_consumption_logs WHERE user_id=?",
-                userId);
+            // ===== ENERGY =====
+            out.println("\nENERGY CONSUMPTION LOGS");
+            out.println("Type,Units,Emission,Date");
 
-
-            out.println();
-            out.println("ENERGY CONSUMPTION LOGS");
-            out.println("Source,Units,Emission,Date");
-
-            dumpTable(out, con,
-                "SELECT energy_source,units,emission,created_at " +
-                "FROM energy_consumption WHERE user_id=?",
-                userId);
+            printResultSet(out, dao.getEnergyData(con, userId));
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void dumpTable(PrintWriter out, Connection con, String sql, int userId)
-            throws SQLException {
+    // ===== COMMON CSV PRINTER =====
+    private void printResultSet(PrintWriter out, ResultSet rs) throws Exception {
 
-        PreparedStatement ps = con.prepareStatement(sql);
-        ps.setInt(1, userId);
-
-        ResultSet rs = ps.executeQuery();
         ResultSetMetaData md = rs.getMetaData();
 
         while (rs.next()) {
             for (int i = 1; i <= md.getColumnCount(); i++) {
-                out.print("\"" + rs.getString(i) + "\"");
+                out.print(format(rs.getString(i)));
                 if (i < md.getColumnCount()) out.print(",");
             }
             out.println();
         }
     }
 
-
-    private Connection getConnection() throws Exception {
-
-        String url = "jdbc:mysql://" +
-                System.getenv("DB_HOST") + ":" +
-                System.getenv("DB_PORT") + "/" +
-                System.getenv("DB_NAME") +
-                "?useSSL=false&serverTimezone=UTC";
-
-        Class.forName("com.mysql.cj.jdbc.Driver");
-
-        return DriverManager.getConnection(
-                url,
-                System.getenv("DB_USER"),
-                System.getenv("DB_PASSWORD")
-        );
+    // ===== SAFE CSV FORMAT =====
+    private String format(String value) {
+        if (value == null) return "\"\"";
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 }
